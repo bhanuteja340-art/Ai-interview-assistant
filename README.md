@@ -1,318 +1,257 @@
 # AI Interview Assistant
 
-This POC is a RAG-based interview assistant.
+A Retrieval-Augmented Generation (RAG) application that answers interview-related questions using an interview preparation PDF as its knowledge base.
 
-It uses an interview questions and answers PDF as the knowledge source. When a user asks a question, the application retrieves relevant content from the knowledge base and uses Gemini to generate a grounded answer.
+The application uses **Google Gemini**, **Qdrant Vector Database**, **Streamlit**, and **SQLite** to provide relevant, source-grounded answers with efficient caching.
 
-## RAG Pipeline
+## Key Features
 
-The application flow is:
+- **PDF-based Knowledge Base:** Extracts interview questions and answers from a PDF document.
+- **Section-Aware Chunking:** Splits document content into manageable chunks while preserving useful context.
+- **Semantic Search:** Uses embeddings and Qdrant to retrieve the top 5 relevant chunks.
+- **AI Answer Generation:** Uses Google Gemini to generate natural-language answers grounded in retrieved information.
+- **SQLite Caching:** Stores generated answers, supporting content, and retrieved chunks for repeated questions.
+- **Source References:** Displays retrieved PDF chunks, page numbers, and distance values.
+- **PDF Viewer:** Allows users to view the source document within the Streamlit application.
+- **Performance Monitoring:** Displays retrieval, generation, and total response times.
+- **Application Logging:** Records request progress, cache behavior, performance, and processing failures.
+- **Error Handling:** Handles application and API failures with user-friendly messages.
 
-Knowledge Base
-↓
-PDF Loader
-↓
-Section-Aware Chunking
-↓
-Embeddings
-↓
-Qdrant Vector Store
-↓
-User Question
-↓
-Query Embedding
-↓
-Retriever
-↓
-Relevant Contexts
-↓
-RAG Pipeline
-↓
-Gemini Generator
-↓
-Grounded Answer
-↓
-SQLite Cache
+## Technology Stack
 
-### How it works
+| Component | Technology |
+|---|---|
+| Programming language | Python |
+| Web interface | Streamlit |
+| Generative AI | Google Gemini |
+| Vector database | Qdrant |
+| Embeddings | Gemini Embedding API |
+| Cache database | SQLite |
+| PDF processing | PyPDF |
+| Configuration | Python Dotenv |
+| Version control | Git and GitHub |
 
-1. The interview PDF is loaded from the `knowledge_base` directory.
-2. The PDF loader extracts the document text.
-3. Section-aware chunking creates retrieval units while preserving useful section context.
-4. Embeddings are generated for the document chunks and stored in Qdrant with metadata.
-5. A user question is converted into a query embedding and searched against Qdrant.
-6. Relevant chunks are passed to the Gemini generator.
-7. Gemini generates a grounded answer using the retrieved content.
-8. The result is stored in SQLite.
-9. If the same question is asked again, the cached result can be returned without repeating retrieval and generation.
+## System Architecture
 
-## Cache
+```text
+                    PDF Knowledge Base
+                            |
+                         PDF Loader
+                            |
+                    Section-Aware Chunking
+                            |
+                      Gemini Embeddings
+                            |
+                       Qdrant Cloud
+                            |
+                 Stored Document Embeddings
 
-The cache is implemented using SQLite.
 
-For a new question:
-`Question → Cache Miss → Retrieval → Gemini Generation → SQLite Store → Answer`
+                       User Question
+                            |
+                       SQLite Cache
+                       /          \
+                  Cache Hit      Cache Miss
+                      |              |
+                 Cached Answer   Query Embedding
+                      |              |
+                      |         Qdrant Retrieval
+                      |              |
+                      |         Top 5 PDF Chunks
+                      |              |
+                      |         Gemini Generator
+                      |              |
+                      |         Grounded Answer
+                      |              |
+                      |         Store in SQLite
+                      |              |
+                      +------+-------+
+                             |
+                     Streamlit Response
+                             |
+                  Answer + Source References
+```
 
-For the same question again:
-`Question → Cache Hit → Stored Answer / Context / Retrieved Chunks`
+## How It Works
 
-The cache stores the answer, grounded content, and retrieved chunks.
+1. The PDF document is loaded from the `knowledge_base` directory.
+2. Text is extracted and divided into meaningful chunks.
+3. Embeddings are generated and stored in Qdrant with metadata.
+4. The user submits an interview question.
+5. SQLite checks whether a valid cached response exists.
+6. On a cache miss, the question is converted into an embedding.
+7. Qdrant retrieves the top 5 matching document chunks.
+8. Gemini generates an answer using the retrieved context.
+9. The answer, grounded content, and source chunks are stored in SQLite.
+10. Streamlit displays the answer, response timings, and PDF references.
 
 ## Project Structure
 
 ```text
 Chatbot/
-│
+|
 ├── knowledge_base/
 │   └── top 100 common interview questions and best answers.pdf
-│
+|
 ├── src/
+│   ├── __init__.py
 │   ├── cache.py
 │   ├── chunking.py
 │   ├── embeddings.py
 │   ├── generator.py
 │   ├── ingest.py
 │   ├── pdf_loader.py
+│   ├── rag_pipeline.py
 │   ├── retriever.py
-│   ├── vector_store.py
-│   └── rag_pipeline.py
-│
-├── evaluation/
-│   ├── eval_dataset.py
-│   ├── eval_dataset.json
-│   ├── neweval_dataset.json
-│   └── run_evaluation.py
-│
-├── TruLens/
-│   ├── evaluation.py
-│   ├── trulens_evaluation.py
-│   ├── trulens_results.json
-│   └── trulens_results.csv
-│
-├── cache/
-│   └── chatbot_cache.db
-│
-├── vector_store/
-│   └── ingestion_metadata.json
-│
+│   └── vector_store.py
+|
 ├── app.py
 ├── main.py
 ├── requirements.txt
-├── .env
 ├── .env.example
-├── README.md
-└── .gitignore
+├── .gitignore
+└── README.md
 ```
 
-## Configuration
+Local-only directories, virtual environments, credentials, and cache databases are excluded from GitHub.
 
-Create a `.env` file in the project root and configure the Gemini API key:
+## Installation and Setup
 
-```text
-GEMINI_API_KEY=<your Gemini API key>
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/bhanuteja340-art/Ai-interview-assistant.git
+cd Ai-interview-assistant
 ```
 
-Do not commit the `.env` file or expose the API key in source code, screenshots, or documentation.
-
-## Setup
-
-The following sequence can be used to set up the POC on another Windows machine.
-
-### Step 1 — Extract the project
-
-Extract the POC ZIP into the required working directory.
-
-```powershell
-Expand-Archive -Path "C:\path\to\Chatbot.zip" -DestinationPath "C:\Users\<user>\Desktop\Chatbot"
-```
-
-### Step 2 — Open the project directory
-
-```powershell
-cd C:\Users\<user>\Desktop\Chatbot
-```
-
-### Step 3 — Create the virtual environment
-
-If `.venv` is not already available:
+### 2. Create a virtual environment
 
 ```powershell
 python -m venv .venv
 ```
 
-### Step 4 — Activate the virtual environment
+### 3. Activate the environment
+
+On Windows PowerShell:
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
 ```
 
-### Step 5 — Check Python
+### 4. Install dependencies
 
 ```powershell
-python --version
+python -m pip install -r requirements.txt
 ```
 
-The verified environment used Python 3.11.9.
-
-### Step 6 — Update pip
+Verify dependency compatibility:
 
 ```powershell
-python -m pip install --upgrade pip
+python -m pip check
 ```
 
-### Step 7 — Install project dependencies
+### 5. Configure environment variables
 
-```powershell
-pip install -r requirements.txt
+Create a `.env` file in the project root.
+
+```env
+GEMINI_API_KEY=your_gemini_api_key
+QDRANT_URL=your_qdrant_cluster_url
+QDRANT_API_KEY=your_qdrant_api_key
 ```
 
-### Step 8 — Check dependencies
+Replace the example values with your own credentials.
 
-```powershell
-pip check
-```
+Never commit real API keys to GitHub.
 
-### Step 9 — Verify Gemini configuration
+### 6. Prepare the knowledge base
 
-```powershell
-python -c "import os; from dotenv import load_dotenv; load_dotenv(); print('GEMINI_API_KEY configured:', bool(os.getenv('GEMINI_API_KEY')))"
-```
+The application requires a Qdrant collection containing document embeddings.
 
-The command checks whether the key is configured without displaying the key itself.
-
-## Prepare the Evaluation Dataset
-
-The controlled evaluation dataset used by the current evaluation flow is:
-
-```text
-evaluation/neweval_dataset.json
-```
-
-Generate or refresh the dataset with:
-
-```powershell
-python -m evaluation.eval_dataset
-```
-
-The dataset generation flow uses the interview PDF and produces the controlled evaluation dataset.
-
-## Run the RAG Application
-
-### Ingest the knowledge base
-
-Run ingestion before using a new or changed knowledge base:
+To ingest the configured knowledge-base PDF:
 
 ```powershell
 python -m src.ingest
 ```
 
-### Run the RAG pipeline directly
+If the existing Qdrant collection already contains the correct embeddings, ingestion does not need to be repeated.
+
+### 7. Run the application
 
 ```powershell
-python -m src.rag_pipeline
+python -m streamlit run app.py
 ```
 
-Enter an interview question when prompted.
+Open:
 
-### Run the command-line application
+`http://localhost:8501`
 
-```powershell
-python main.py
-```
+## SQLite Answer Caching
 
-### Run the Streamlit application
+The application uses SQLite to avoid unnecessary repeated retrieval and generation.
 
-```powershell
-streamlit run app.py
-```
-
-Then open the local Streamlit URL shown in the terminal.
-
-## RAGAS
-
-RAGAS is used for dataset-oriented RAG evaluation.
-
-Run:
-
-```powershell
-python -m evaluation.run_evaluation
-```
-
-The current controlled dataset is `evaluation/neweval_dataset.json`.
-
-The RAGAS evaluation uses a Gemini-backed evaluator through the OpenAI-compatible client configuration in `evaluation/run_evaluation.py`.
-
-## TruLens
-
-TruLens is used to evaluate the RAG application using deterministic checks and Gemini-based judging.
-
-The evaluation covers:
-
-- Context Precision
-- Context Recall
-- Faithfulness
-- Answer Relevancy
-- Answer Correctness
-
-Run:
-
-```powershell
-python .\TruLens\trulens_evaluation.py
-```
-
-The TruLens evaluation includes deterministic checks, case selection, Gemini-based evidence judging, metric calculation, feedback records, and the TruLens dashboard.
-
-LiteLLM is used only by the TruLens evaluation component to communicate with Gemini. It is not part of the normal RAG application flow.
-
-## Evaluation Flow
-
-The two evaluation paths are separate from the normal RAG runtime:
+**First request:**
 
 ```text
-RAG Pipeline
-├── RAGAS
-│   └── Controlled Dataset → RAGAS Metrics → JSON / CSV
-│
-└── TruLens
-    └── Deterministic Checks
-        → Case Selection
-        → Gemini Evaluation
-        → Metric Calculation
-        → TruLens Feedback
-        → Dashboard
+Question → Cache Miss → Qdrant → Gemini → SQLite → Answer
 ```
 
-## Main Run Order
-
-For a complete setup and execution:
+**Repeated request:**
 
 ```text
-1. Extract the ZIP
-2. Open the project directory
-3. Create the virtual environment
-4. Activate the virtual environment
-5. Check Python
-6. Update pip
-7. Install requirements.txt
-8. Run pip check
-9. Configure .env
-10. Verify GEMINI_API_KEY
-11. Generate the evaluation dataset
-12. Run knowledge-base ingestion
-13. Run the RAG pipeline
-14. Run the CLI application
-15. Run the Streamlit application
-16. Verify cache behaviour using the same question twice
-17. Run RAGAS
-18. Run TruLens
+Question → Cache Hit → Stored Answer + Source Chunks
+```
 
+A cached response can avoid additional Qdrant and Gemini requests, improving response time.
 
-## Application Entry Points
+Cache contents are local to the application environment and should not be treated as permanent storage on ephemeral cloud hosting.
 
-- app.py — Streamlit web application
-- main.py— command-line application
-- src/rag_pipeline.py — main RAG pipeline
-- src/ingest.py — knowledge-base ingestion
-- evaluation/run_evaluation.py — RAGAS evaluation
-- TruLens/trulens_evaluation.py — TruLens evaluation
+## Performance Monitoring
 
+The Streamlit interface displays:
+
+- Retrieval latency
+- Generation latency
+- Total request latency
+- Request status (`success` or `cache_hit`)
+
+The application also records request-processing events using Python's built-in logging module.
+
+Example application logs:
+
+```text
+INFO | RAG pipeline initialized
+INFO | Question processing started
+INFO | Cache miss
+INFO | Retrieval completed | chunks=5 | duration=1.892s
+INFO | Generation completed | duration=2.004s
+INFO | Request completed | status=success | total=3.924s
+```
+
+These logs help diagnose slow requests, cache behavior, and processing failures.
+
+Application logs should not include API keys or complete document contents.
+
+## Cloud Deployment
+
+The application is designed to be deployed using Streamlit Community Cloud.
+
+Deployment steps:
+
+1. Push the application code to GitHub.
+2. Sign in to Streamlit Community Cloud.
+3. Select the GitHub repository.
+4. Set the main application file to `app.py`.
+5. Configure the required environment credentials privately.
+6. Deploy the application.
+7. Verify retrieval, generation, PDF viewing, caching, and logs.
+
+A Streamlit secrets configuration can look like:
+
+```toml
+GEMINI_API_KEY = "your_gemini_api_key"
+QDRANT_URL = "your_qdrant_cluster_url"
+QDRANT_API_KEY = "your_qdrant_api_key"
+```
+
+The application must be configured to read these values
