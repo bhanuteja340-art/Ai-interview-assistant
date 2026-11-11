@@ -1,0 +1,6 @@
+
+streamlit[pdf]==1.63.0
+google-genai==2.2.0
+qdrant-client
+pypdf==6.18.0
+python-dotenv
