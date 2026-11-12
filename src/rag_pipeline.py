@@ -11,7 +11,7 @@ from src.retriever import Retriever
 
 # New cache version for answers generated from one chunk.
 # Old cached answers remain stored but will not be reused.
-CACHE_VERSION = "single_chunk_v1"
+CACHE_VERSION = "single_chunk_v3"
 
 
 logger = logging.getLogger("chatbot.rag_pipeline")
