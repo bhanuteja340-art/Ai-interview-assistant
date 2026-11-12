@@ -1,4 +1,6 @@
+
 import logging
+from html import escape
 from pathlib import Path
 
 import streamlit as st
@@ -10,35 +12,126 @@ logger = logging.getLogger(__name__)
 
 
 def friendly_error_message(exc: Exception) -> str:
-    """Show a safe message to users without exposing internal error details."""
+    """Show a safe message without exposing internal error details."""
     status_code = getattr(exc, "code", None)
     message = str(exc).lower()
 
     if status_code == 429 or any(
         phrase in message
-        for phrase in ("quota", "rate limit", "too many requests", "resource_exhausted")
+        for phrase in (
+            "quota",
+            "rate limit",
+            "too many requests",
+            "resource_exhausted",
+        )
     ):
-        return "The AI service has reached its usage limit. Please try again later."
+        return (
+            "The AI service has reached its usage limit. "
+            "Please try again later."
+        )
 
     if status_code in (401, 403) or any(
         phrase in message
-        for phrase in ("api key not valid", "unauthenticated", "permission denied")
+        for phrase in (
+            "api key not valid",
+            "unauthenticated",
+            "permission denied",
+        )
     ):
-        return "The AI service is not configured correctly. Please contact the app administrator."
+        return (
+            "The AI service is not configured correctly. "
+            "Please contact the app administrator."
+        )
 
-    if isinstance(exc, (TimeoutError, ConnectionError)) or any(
+    if isinstance(
+        exc, (TimeoutError, ConnectionError)
+    ) or any(
         phrase in message
-        for phrase in ("timed out", "timeout", "connection refused", "connection error")
+        for phrase in (
+            "timed out",
+            "timeout",
+            "connection refused",
+            "connection error",
+        )
     ):
-        return "The connection timed out or was interrupted. Please try again."
+        return (
+            "The connection timed out or was interrupted. "
+            "Please try again."
+        )
 
-    if any(phrase in message for phrase in ("qdrant", "vector store", "vector database")):
-        return "The knowledge base is temporarily unavailable. Please try again later."
+    if any(
+        phrase in message
+        for phrase in (
+            "qdrant",
+            "vector store",
+            "vector database",
+        )
+    ):
+        return (
+            "The knowledge base is temporarily unavailable. "
+            "Please try again later."
+        )
 
     if "empty response" in message:
-        return "The AI service returned an empty response. Please try again."
+        return (
+            "The AI service returned an empty response. "
+            "Please try again."
+        )
 
-    return "Something went wrong while processing your question. Please try again later."
+    return (
+        "Something went wrong while processing your question. "
+        "Please try again later."
+    )
+
+
+def get_selected_source(result: dict):
+    """
+    Find the selected chunk's position among the
+    five retrieved chunks.
+
+    Chunk number = position in retrieved results.
+    Chunk ID = original identifier from Qdrant.
+    """
+    selected_chunk = result.get("selected_chunk")
+    retrieved_chunks = result.get("retrieved_chunks") or []
+
+    if not selected_chunk:
+        return None
+
+    selected_id = selected_chunk.get("id")
+
+    for index, chunk in enumerate(
+        retrieved_chunks,
+        start=1,
+    ):
+        if (
+            selected_id is not None
+            and str(chunk.get("id")) == str(selected_id)
+        ):
+            metadata = chunk.get("metadata") or {}
+
+            return {
+                "number": index,
+                "page": metadata.get("page", "unknown"),
+                "chunk_id": metadata.get(
+                    "chunk_id",
+                    chunk.get("id", "unknown"),
+                ),
+            }
+
+    # Fallback if the selected chunk is not matched by ID.
+    selected_metadata = (
+        selected_chunk.get("metadata") or {}
+    )
+
+    return {
+        "number": None,
+        "page": selected_metadata.get("page", "unknown"),
+        "chunk_id": selected_metadata.get(
+            "chunk_id",
+            selected_chunk.get("id", "unknown"),
+        ),
+    }
 
 
 st.set_page_config(
@@ -112,6 +205,25 @@ st.markdown(
         margin-bottom: 8px;
     }
 
+    /* NEW: Selected source label above the answer */
+    .selected-source {
+        background-color: #e8f5ed;
+        border: 1px solid #b6dec4;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 12px;
+        color: #17643c;
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    .selected-source-detail {
+        font-size: 13px;
+        font-weight: 400;
+        color: #476758;
+        margin-top: 5px;
+    }
+
     .footer {
         text-align: center;
         color: #7a8b99;
@@ -154,7 +266,9 @@ def load_pipeline():
 try:
     pipeline = load_pipeline()
 except Exception:
-    logger.exception("Failed to initialize the RAG pipeline")
+    logger.exception(
+        "Failed to initialize the RAG pipeline"
+    )
     st.error(
         "Could not initialize the chatbot. "
         "Please check the server configuration and try again later."
@@ -180,7 +294,7 @@ if st.button("Ask"):
         st.warning("Please enter a question.")
         st.stop()
 
-    # Clear the previous answer so a failed request never shows stale results.
+    # Clear previous answer before a new request.
     st.session_state["result"] = None
     st.session_state["show_source_document"] = False
 
@@ -192,7 +306,9 @@ if st.button("Ask"):
         st.session_state["show_source_document"] = False
 
     except Exception as exc:
-        logger.exception("Failed to answer chatbot question")
+        logger.exception(
+            "Failed to answer chatbot question"
+        )
         st.error(friendly_error_message(exc))
 
 
@@ -206,10 +322,27 @@ if result is not None:
         unsafe_allow_html=True,
     )
 
+    # NEW: Identify the source actually sent to Gemini.
+    selected_source = get_selected_source(result)
+
+    if selected_source is not None:
+        page = selected_source["page"]
+
+        st.markdown(
+            f"""
+            <div class="selected-source">
+                Source: PDF Page {escape(str(page))}
+                
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # Existing answer display.
     st.markdown(
         f"""
         <div class="answer-box">
-            {result["answer"]}
+            {escape(str(result["answer"]))}
         </div>
         """,
         unsafe_allow_html=True,
@@ -257,7 +390,7 @@ if result is not None:
             f"""
             <div class="source-box">
                 <div class="source-name">
-                    {source_path.name}
+                    {escape(source_path.name)}
                 </div>
                 <div class="source-info">
                     Knowledge-base source document used for retrieval
@@ -320,14 +453,32 @@ if result is not None:
             ),
         )
 
+        distance_label = (
+            f"{distance:.4f}"
+            if isinstance(distance, (int, float))
+            else "N/A"
+        )
+
+        # Mark the selected chunk in the existing list.
+        selected_marker = ""
+
+        if (
+            selected_source is not None
+            and selected_source["number"] == index
+        ):
+            selected_marker = " | Used for Answer"
+
         with st.expander(
-            f"Chunk {index} | Rank {index} | Page {page} | Distance {f'{distance:.4f}' if isinstance(distance, (int, float)) else 'N/A'}"
+            f"Chunk {index} | Rank {index} "
+            f"| Page {page} "
+            f"| Distance {distance_label}"
+            f"{selected_marker}"
         ):
 
             st.markdown(
                 f"""
                 <div class="chunk-label">
-                    Chunk ID: {chunk_id}
+                    Chunk ID: {escape(str(chunk_id))}
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -339,6 +490,3 @@ if result is not None:
                     "",
                 )
             )
-
-
-

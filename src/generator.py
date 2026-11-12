@@ -1,3 +1,4 @@
+
 import os
 import time
 from typing import Any
@@ -118,8 +119,8 @@ If the retrieved context contains a sample answer that directly answers
 the user's question, use the substantive information from that sample
 answer.
 
-You may naturally rephrase and combine information from multiple relevant
-chunks.
+You may naturally rephrase information from the selected source chunk.
+Do not use details from any other chunks.
 
 Do NOT ignore relevant factual details simply because they appear inside
 a sample answer.
@@ -392,12 +393,27 @@ FINAL ANSWER
         self,
         question: str,
         retrieved_chunks: list[dict[str, Any]],
-    ) -> dict[str, str]:
+    ) -> dict[str, Any]:
 
         if not question.strip():
             raise ValueError("Question cannot be empty.")
 
-        context = self.build_context(retrieved_chunks)
+        # Select the first non-empty chunk from the ranked results.
+        # This assumes retriever.py returns the best match first.
+        selected_chunk = next(
+            (
+                chunk
+                for chunk in retrieved_chunks
+                if str(chunk.get("text") or "").strip()
+            ),
+            None,
+        )
+
+        if selected_chunk is None:
+            raise ValueError("No usable retrieved chunk was found.")
+
+        # Send only ONE selected chunk to Gemini.
+        context = self.build_context([selected_chunk])
 
         prompt = self.build_prompt(
             question,
@@ -409,6 +425,7 @@ FINAL ANSWER
         return {
             "grounded_content": context,
             "answer": answer,
+            "selected_chunk": selected_chunk,
         }
 
     def generate(
