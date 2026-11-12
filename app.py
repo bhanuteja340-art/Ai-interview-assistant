@@ -140,12 +140,7 @@ st.markdown(
 )
 
 
-st.markdown(
-    '<div class="brand">Heuristiclabs.ai</div>',
-    unsafe_allow_html=True,
-)
-
-st.markdown(
+t.markdown(
     '<div class="main-title">AI Interview Assistant</div>',
     unsafe_allow_html=True,
 )
@@ -346,7 +341,4 @@ if result is not None:
             )
 
 
-st.markdown(
-    '<div class="footer">Powered by heuristiclabs.ai</div>',
-    unsafe_allow_html=True,
-)
+
