@@ -140,7 +140,7 @@ st.markdown(
 )
 
 
-t.markdown(
+st.markdown(
     '<div class="main-title">AI Interview Assistant</div>',
     unsafe_allow_html=True,
 )
